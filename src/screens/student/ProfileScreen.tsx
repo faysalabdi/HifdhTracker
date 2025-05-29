@@ -94,7 +94,7 @@ const ProfileScreen = ({ navigation }) => {
             <Icon name="logout" type="material" color="#fff" size={20} style={styles.buttonIcon} />
             <Text style={styles.buttonText}>Logout</Text>
           </TouchableOpacity>
-        </View>
+    </View>
       </ScrollView>
     </SafeAreaView>
   );

@@ -31,11 +31,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     // Load user from AsyncStorage on startup
     const loadUser = async () => {
-      try {
+          try {
         const userJSON = await AsyncStorage.getItem(USER_STORAGE_KEY);
         if (userJSON) {
           const userData = JSON.parse(userJSON);
-          setUser(userData);
+            setUser(userData);
         }
       } catch (error) {
         console.error('Error loading user from storage:', error);

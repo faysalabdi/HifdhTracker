@@ -46,17 +46,17 @@ export async function signIn(credentials: LoginCredentials) {
 export async function signUp(form: RegisterForm) {
   try {
     // First, create the auth user with email (username)
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+  const { data: authData, error: authError } = await supabase.auth.signUp({
       email: form.username, // Username is now the email
-      password: form.password,
-      options: {
-        data: {
-          name: form.name,
-          role: form.role,
-        }
+    password: form.password,
+    options: {
+      data: {
+        name: form.name,
+        role: form.role,
       }
-    });
-    
+    }
+  });
+  
     if (authError) {
       console.error('Auth error:', authError);
       throw authError;
@@ -67,22 +67,22 @@ export async function signUp(form: RegisterForm) {
     }
     
     console.log('Auth signup successful, creating user record');
-    
-    // Create the user record in our custom users table
+  
+  // Create the user record in our custom users table
     // Let database auto-generate the integer ID
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .insert({
+  const { data: userData, error: userError } = await supabase
+    .from('users')
+    .insert({
         // Don't specify id - it's an auto-incrementing integer
-        username: form.username,
+      username: form.username,
         password: form.password, // Store password in users table (will be hashed by Supabase)
-        name: form.name,
-        role: form.role,
+      name: form.name,
+      role: form.role,
         // No auth_id column in the schema
-      })
-      .select()
-      .single();
-    
+    })
+    .select()
+    .single();
+  
     if (userError) {
       console.error('User insert error:', userError);
       console.log('Error details:', JSON.stringify(userError, null, 2));
@@ -90,29 +90,29 @@ export async function signUp(form: RegisterForm) {
     }
     
     console.log('User record created successfully:', userData);
-    
-    // If it's a student, also create a student record
+  
+  // If it's a student, also create a student record
     if (form.role === 'student') {
       console.log('Creating student record');
-      const { error: studentError } = await supabase
-        .from('students')
-        .insert({
+    const { error: studentError } = await supabase
+      .from('students')
+      .insert({
           user_id: userData.id, // Use the auto-generated ID from users table
-          name: form.name,
-          current_juz: 1,
-          completed_juz: [],
-          current_surah: 1,
-          current_ayah: 1,
-        });
-      
+        name: form.name,
+        current_juz: 1,
+        completed_juz: [],
+        current_surah: 1,
+        current_ayah: 1,
+      });
+    
       if (studentError) {
         console.error('Student insert error:', studentError);
         console.log('Student error details:', JSON.stringify(studentError, null, 2));
         throw studentError;
       }
-    }
-    
-    return authData;
+  }
+  
+  return authData;
   } catch (error) {
     console.error('SignUp error:', error);
     throw error;

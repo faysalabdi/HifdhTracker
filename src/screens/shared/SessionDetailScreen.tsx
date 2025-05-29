@@ -10,7 +10,7 @@ import {
   Modal,
 } from 'react-native';
 import { useAuth } from 'src/store/AuthContext';
-import { useSession } from 'src/hooks/useSessions';
+import { useSession, useCompleteSession } from 'src/hooks/useSessions';
 import { useSessionMistakes, useCreateSessionMistake } from 'src/hooks/useMistakes';
 import { formatDate } from 'src/utils/utils';
 import { formatSurahAndAyahRange, getSurahByNumber } from 'src/utils/surah-data';
@@ -33,6 +33,7 @@ const SessionDetailScreen: React.FC<SessionDetailScreenProps> = ({ route, naviga
   
   const [isAddingMistake, setIsAddingMistake] = useState(false);
   const [selectedAyah, setSelectedAyah] = useState(1);
+  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   
   const { 
     data: session, 
@@ -47,6 +48,7 @@ const SessionDetailScreen: React.FC<SessionDetailScreenProps> = ({ route, naviga
   } = useSessionMistakes(sessionId);
   
   const createMistakeMutation = useCreateSessionMistake(sessionId);
+  const completeSessionMutation = useCompleteSession();
   
   if (isLoadingSession) {
     return (
@@ -79,12 +81,30 @@ const SessionDetailScreen: React.FC<SessionDetailScreenProps> = ({ route, naviga
   };
   
   const handleSubmitMistake = async (mistake: MistakeFormType) => {
+    if (!selectedStudentId) {
+      Alert.alert('Error', 'Please select a student first');
+      return;
+    }
+    
     try {
-      await createMistakeMutation.mutateAsync(mistake);
+      await createMistakeMutation.mutateAsync({
+        ...mistake,
+        studentId: selectedStudentId
+      });
       setIsAddingMistake(false);
       refetchMistakes();
     } catch (error) {
       Alert.alert('Error', 'Failed to add mistake: ' + (error as Error).message);
+    }
+  };
+  
+  const handleCompleteSession = async () => {
+    try {
+      await completeSessionMutation.mutateAsync(sessionId);
+      refetchSession();
+      Alert.alert('Success', 'Session marked as complete!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to complete session: ' + (error as Error).message);
     }
   };
   
@@ -171,8 +191,45 @@ const SessionDetailScreen: React.FC<SessionDetailScreenProps> = ({ route, naviga
         />
       </View>
       
+      {!session.completed && (
       <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>Add Mistake</Text>
+          <Text style={styles.sectionTitle}>Record Mistakes</Text>
+          
+          <View style={styles.studentSelector}>
+            <Text style={styles.instructionsText}>Select student:</Text>
+            <View style={styles.studentButtons}>
+              <TouchableOpacity
+                style={[
+                  styles.studentButton,
+                  selectedStudentId === session.student1Id && styles.selectedStudentButton
+                ]}
+                onPress={() => setSelectedStudentId(session.student1Id)}
+              >
+                <Text style={[
+                  styles.studentButtonText,
+                  selectedStudentId === session.student1Id && styles.selectedStudentButtonText
+                ]}>
+                  {session.student1Name || 'Student 1'}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.studentButton,
+                  selectedStudentId === session.student2Id && styles.selectedStudentButton
+                ]}
+                onPress={() => setSelectedStudentId(session.student2Id)}
+              >
+                <Text style={[
+                  styles.studentButtonText,
+                  selectedStudentId === session.student2Id && styles.selectedStudentButtonText
+                ]}>
+                  {session.student2Name || 'Student 2'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          
         <Text style={styles.instructionsText}>
           Select an ayah to record a mistake:
         </Text>
@@ -188,20 +245,20 @@ const SessionDetailScreen: React.FC<SessionDetailScreenProps> = ({ route, naviga
               key={ayah}
               style={styles.ayahButton}
               onPress={() => handleAddMistake(ayah)}
+                disabled={!selectedStudentId}
             >
               <Text style={styles.ayahButtonText}>{ayah}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
       </View>
+      )}
       
       {!session.completed && (
         <View style={styles.actionsContainer}>
           <TouchableOpacity
             style={styles.completeButton}
             onPress={() => {
-              // Logic to complete the session
-              // This would be implemented with a mutation hook
               Alert.alert(
                 'Complete Session',
                 'Are you sure you want to mark this session as complete?',
@@ -209,15 +266,15 @@ const SessionDetailScreen: React.FC<SessionDetailScreenProps> = ({ route, naviga
                   { text: 'Cancel', style: 'cancel' },
                   { 
                     text: 'Complete', 
-                    onPress: () => {
-                      // Logic to complete session
-                    }
+                    onPress: handleCompleteSession
                   }
                 ]
               );
             }}
           >
-            <Text style={styles.completeButtonText}>Complete Session</Text>
+            <Text style={styles.completeButtonText}>
+              {completeSessionMutation.isPending ? 'Completing...' : 'Complete Session'}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -231,7 +288,7 @@ const SessionDetailScreen: React.FC<SessionDetailScreenProps> = ({ route, naviga
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <MistakeForm
-              studentId={0} // This should be the ID of the student making a mistake
+              studentId={selectedStudentId || 0}
               ayah={selectedAyah}
               onSubmit={handleSubmitMistake}
               onCancel={() => setIsAddingMistake(false)}
@@ -267,20 +324,19 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   errorText: {
-    textAlign: 'center',
-    color: '#c62828',
     fontSize: 16,
-    marginBottom: 20,
+    color: '#e53935',
+    marginBottom: 16,
+    textAlign: 'center',
   },
   backButton: {
     backgroundColor: '#2e7d32',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 5,
+    padding: 12,
+    borderRadius: 8,
   },
   backButtonText: {
     color: '#fff',
-    fontWeight: '500',
+    fontWeight: 'bold',
   },
   header: {
     backgroundColor: '#2e7d32',
@@ -288,7 +344,6 @@ const styles = StyleSheet.create({
     paddingTop: 40,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
-    marginBottom: 16,
   },
   title: {
     fontSize: 24,
@@ -297,20 +352,18 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: '#fff',
-    opacity: 0.8,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   sectionContainer: {
     backgroundColor: '#fff',
     borderRadius: 10,
     margin: 16,
-    marginTop: 0,
     padding: 16,
-    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+    elevation: 2,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -321,8 +374,16 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 12,
+  },
+  refreshButton: {
+    backgroundColor: '#f0f0f0',
+    padding: 8,
+    borderRadius: 4,
+  },
+  refreshButtonText: {
+    fontSize: 12,
+    color: '#666',
   },
   detailsContainer: {
     backgroundColor: '#f9f9f9',
@@ -331,78 +392,97 @@ const styles = StyleSheet.create({
   },
   detailRow: {
     flexDirection: 'row',
-    marginBottom: 8,
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
   detailLabel: {
-    width: 80,
-    fontWeight: '500',
+    fontSize: 16,
     color: '#666',
   },
   detailValue: {
-    flex: 1,
-    color: '#333',
+    fontSize: 16,
+    fontWeight: '500',
   },
   completed: {
     color: '#4caf50',
-    fontWeight: 'bold',
   },
   pending: {
     color: '#ff9800',
-    fontWeight: 'bold',
-  },
-  refreshButton: {
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 5,
-  },
-  refreshButtonText: {
-    color: '#555',
-    fontSize: 14,
   },
   instructionsText: {
+    fontSize: 16,
     marginBottom: 12,
-    color: '#666',
   },
-  ayahContainer: {
+  studentSelector: {
     marginBottom: 16,
   },
+  studentButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  studentButton: {
+    flex: 1,
+    backgroundColor: '#f0f0f0',
+    padding: 12,
+    margin: 4,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  selectedStudentButton: {
+    backgroundColor: '#e8f5e9',
+    borderColor: '#2e7d32',
+    borderWidth: 1,
+  },
+  studentButtonText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  selectedStudentButtonText: {
+    fontWeight: 'bold',
+    color: '#2e7d32',
+  },
+  ayahContainer: {
+    marginVertical: 12,
+  },
   ayahContent: {
-    paddingVertical: 10,
+    paddingVertical: 8,
   },
   ayahButton: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#e8f5e9',
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 5,
+    marginHorizontal: 6,
   },
   ayahButtonText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: 'bold',
+    color: '#2e7d32',
   },
   actionsContainer: {
-    padding: 16,
-    marginBottom: 20,
+    margin: 16,
+    marginTop: 0,
   },
   completeButton: {
     backgroundColor: '#2e7d32',
-    borderRadius: 5,
-    padding: 15,
+    padding: 16,
+    borderRadius: 8,
     alignItems: 'center',
   },
   completeButtonText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     padding: 20,
   },
   modalContent: {
